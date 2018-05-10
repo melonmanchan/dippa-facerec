@@ -4,7 +4,8 @@
 *.dll
 *.so
 *.dylib
-./main
+main
+dippa-0a2450446ce1.json
 
 # Test binary, build with `go test -c`
 *.test
