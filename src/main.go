@@ -2,33 +2,69 @@
 package main
 
 import (
-	"fmt"
+	"flag"
 	"log"
-	"os"
+	"net/http"
 
-	"./google"
+	"github.com/gorilla/websocket"
 )
 
-func main() {
-	// Sets the name of the image file to annotate.
-	filename := "./smile.jpg"
+var addr = flag.String("addr", "localhost:8080", "http service address")
 
-	file, err := os.Open(filename)
+func checkOrigin(r *http.Request) bool {
+	return true
+}
 
-	defer file.Close()
+var upgrader = websocket.Upgrader{
+	CheckOrigin: checkOrigin,
+} // use default options
 
-	labels, err := google.ReaderToFaceResults(file)
+func readFile(w http.ResponseWriter, r *http.Request) {
+	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Fatalf("Failed to detect labels: %v", err)
+		log.Print("upgrade:", err)
+		return
 	}
-
-	fmt.Println("Labels:")
-	for _, label := range labels {
-		fmt.Printf("Confidence: %f\n", label.DetectionConfidence)
-		fmt.Printf("Anger: %s\n", label.AngerLikelihood)
-		fmt.Printf("Blurred: %s\n", label.BlurredLikelihood)
-		fmt.Printf("Joy: %s\n", label.JoyLikelihood)
-		fmt.Printf("Sorrow: %s\n", label.SorrowLikelihood)
-		fmt.Printf("Surprise: %s", label.SurpriseLikelihood)
+	defer c.Close()
+	for {
+		mt, message, err := c.ReadMessage()
+		if err != nil {
+			log.Println("read:", err)
+			break
+		}
+		log.Printf("recv: %s", message)
+		err = c.WriteMessage(mt, message)
+		if err != nil {
+			log.Println("write:", err)
+			break
+		}
 	}
 }
+
+func main() {
+	flag.Parse()
+	log.SetFlags(0)
+	http.HandleFunc("/ws", readFile)
+	log.Fatal(http.ListenAndServe(*addr, nil))
+}
+
+//	filename := "./smile.jpg"
+//
+//	file, err := os.Open(filename)
+//
+//	defer file.Close()
+//
+//	labels, err := google.ReaderToFaceResults(file)
+//	if err != nil {
+//		log.Fatalf("Failed to detect labels: %v", err)
+//	}
+//
+//	fmt.Println("Labels:")
+//	for _, label := range labels {
+//		fmt.Printf("Confidence: %f\n", label.DetectionConfidence)
+//		fmt.Printf("Anger: %s\n", label.AngerLikelihood)
+//		fmt.Printf("Blurred: %s\n", label.BlurredLikelihood)
+//		fmt.Printf("Joy: %s\n", label.JoyLikelihood)
+//		fmt.Printf("Sorrow: %s\n", label.SorrowLikelihood)
+//		fmt.Printf("Surprise: %s", label.SurpriseLikelihood)
+//	}
