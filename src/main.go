@@ -60,7 +60,7 @@ func readFile(w http.ResponseWriter, r *http.Request) {
 func main() {
 	flag.Parse()
 	log.SetFlags(0)
-	http.HandleFunc("/ws", readFile)
+	http.HandleFunc("/", readFile)
 	log.Printf("Listening at %s", *addr)
 	log.Fatal(http.ListenAndServe(*addr, nil))
 }
