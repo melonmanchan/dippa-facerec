@@ -1,3 +1,4 @@
+
 package main
 
 import (
@@ -39,20 +40,20 @@ func readFile(w http.ResponseWriter, r *http.Request) {
 
 		labels, err := google.ReaderToFaceResults(r)
 
-		if err != nil {
-			log.Fatalf("Failed to detect labels: %v", err)
-		}
+		if err != nil {VJ
+			log.Printf("Failed to detect labels: %v", err)
+		} else {
+			fmt.Println("Labels:")
 
-		fmt.Println("Labels:")
-
-		for _, label := range labels {
-			c.WriteJSON(label)
-			fmt.Printf("Confidence: %f\n", label.DetectionConfidence)
-			fmt.Printf("Anger: %s\n", label.AngerLikelihood)
-			fmt.Printf("Blurred: %s\n", label.BlurredLikelihood)
-			fmt.Printf("Joy: %s\n", label.JoyLikelihood)
-			fmt.Printf("Sorrow: %s\n", label.SorrowLikelihood)
-			fmt.Printf("Surprise: %s", label.SurpriseLikelihood)
+			for _, label := range labels {
+				c.WriteJSON(label)
+				fmt.Printf("Confidence: %f\n", label.DetectionConfidence)
+				fmt.Printf("Anger: %s\n", label.AngerLikelihood)
+				fmt.Printf("Blurred: %s\n", label.BlurredLikelihood)
+				fmt.Printf("Joy: %s\n", label.JoyLikelihood)
+				fmt.Printf("Sorrow: %s\n", label.SorrowLikelihood)
+				fmt.Printf("Surprise: %s", label.SurpriseLikelihood)
+			}
 		}
 	}
 }
