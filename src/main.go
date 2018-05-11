@@ -9,7 +9,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
-	"github.com/melonmanchan/asd/src/google"
+	"github.com/melonmanchan/dippa-facerec/src/google"
 )
 
 var addr = flag.String("addr", "localhost:8080", "http service address")
@@ -40,7 +40,7 @@ func readFile(w http.ResponseWriter, r *http.Request) {
 
 		labels, err := google.ReaderToFaceResults(r)
 
-		if err != nil {VJ
+		if err != nil {
 			log.Printf("Failed to detect labels: %v", err)
 		} else {
 			fmt.Println("Labels:")
