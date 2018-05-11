@@ -1,12 +1,14 @@
-// Sample vision-quickstart uses the Google Cloud Vision API to label an image.
 package main
 
 import (
+	"bytes"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/gorilla/websocket"
+	"github.com/melonmanchan/asd/src/google"
 )
 
 var addr = flag.String("addr", "localhost:8080", "http service address")
@@ -32,11 +34,26 @@ func readFile(w http.ResponseWriter, r *http.Request) {
 			log.Println("read:", err)
 			break
 		}
-		log.Printf("recv: %s", message)
-		err = c.WriteMessage(mt, message)
+
+		r := bytes.NewReader(message)
+
+		labels, err := google.ReaderToFaceResults(r)
+
 		if err != nil {
-			log.Println("write:", err)
-			break
+			log.Fatalf("Failed to detect labels: %v", err)
+		}
+
+		fmt.Println("Labels:")
+
+		for _, label := range labels {
+			fmt.Printf("Confidence: %f\n", label.DetectionConfidence)
+			fmt.Printf("Anger: %s\n", label.AngerLikelihood)
+			fmt.Printf("Blurred: %s\n", label.BlurredLikelihood)
+			fmt.Printf("Joy: %s\n", label.JoyLikelihood)
+			fmt.Printf("Sorrow: %s\n", label.SorrowLikelihood)
+			fmt.Printf("Surprise: %s", label.SurpriseLikelihood)
+
+			c.WriteMessage(mt, []byte(fmt.Sprintf("Joy: %s", label.JoyLikelihood)))
 		}
 	}
 }
@@ -45,26 +62,6 @@ func main() {
 	flag.Parse()
 	log.SetFlags(0)
 	http.HandleFunc("/ws", readFile)
+	log.Printf("Listening at %s", *addr)
 	log.Fatal(http.ListenAndServe(*addr, nil))
 }
-
-//	filename := "./smile.jpg"
-//
-//	file, err := os.Open(filename)
-//
-//	defer file.Close()
-//
-//	labels, err := google.ReaderToFaceResults(file)
-//	if err != nil {
-//		log.Fatalf("Failed to detect labels: %v", err)
-//	}
-//
-//	fmt.Println("Labels:")
-//	for _, label := range labels {
-//		fmt.Printf("Confidence: %f\n", label.DetectionConfidence)
-//		fmt.Printf("Anger: %s\n", label.AngerLikelihood)
-//		fmt.Printf("Blurred: %s\n", label.BlurredLikelihood)
-//		fmt.Printf("Joy: %s\n", label.JoyLikelihood)
-//		fmt.Printf("Sorrow: %s\n", label.SorrowLikelihood)
-//		fmt.Printf("Surprise: %s", label.SurpriseLikelihood)
-//	}

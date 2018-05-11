@@ -31,7 +31,3 @@ func ReaderToFaceResults(reader io.Reader) ([]*proto.FaceAnnotation, error) {
 
 	return labels, nil
 }
-
-func DoThing() string {
-	return "asd"
-}
