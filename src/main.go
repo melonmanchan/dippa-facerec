@@ -29,7 +29,7 @@ func readFile(w http.ResponseWriter, r *http.Request) {
 	}
 	defer c.Close()
 	for {
-		mt, message, err := c.ReadMessage()
+		_, message, err := c.ReadMessage()
 		if err != nil {
 			log.Println("read:", err)
 			break
@@ -46,14 +46,13 @@ func readFile(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("Labels:")
 
 		for _, label := range labels {
+			c.WriteJSON(label)
 			fmt.Printf("Confidence: %f\n", label.DetectionConfidence)
 			fmt.Printf("Anger: %s\n", label.AngerLikelihood)
 			fmt.Printf("Blurred: %s\n", label.BlurredLikelihood)
 			fmt.Printf("Joy: %s\n", label.JoyLikelihood)
 			fmt.Printf("Sorrow: %s\n", label.SorrowLikelihood)
 			fmt.Printf("Surprise: %s", label.SurpriseLikelihood)
-
-			c.WriteMessage(mt, []byte(fmt.Sprintf("Joy: %s", label.JoyLikelihood)))
 		}
 	}
 }
