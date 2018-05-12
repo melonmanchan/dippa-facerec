@@ -1,67 +1,102 @@
-
 package main
 
 import (
 	"bytes"
-	"flag"
 	"fmt"
 	"log"
-	"net/http"
 
-	"github.com/gorilla/websocket"
 	"github.com/melonmanchan/dippa-facerec/src/google"
+	"github.com/streadway/amqp"
 )
 
-var addr = flag.String("addr", "localhost:8080", "http service address")
-
-func checkOrigin(r *http.Request) bool {
-	return true
-}
-
-var upgrader = websocket.Upgrader{
-	CheckOrigin: checkOrigin,
-} // use default options
-
-func readFile(w http.ResponseWriter, r *http.Request) {
-	c, err := upgrader.Upgrade(w, r, nil)
+func failOnError(err error, msg string) {
 	if err != nil {
-		log.Print("upgrade:", err)
-		return
-	}
-	defer c.Close()
-	for {
-		_, message, err := c.ReadMessage()
-		if err != nil {
-			log.Println("read:", err)
-			break
-		}
-
-		r := bytes.NewReader(message)
-
-		labels, err := google.ReaderToFaceResults(r)
-
-		if err != nil {
-			log.Printf("Failed to detect labels: %v", err)
-		} else {
-			fmt.Println("Labels:")
-
-			for _, label := range labels {
-				c.WriteJSON(label)
-				fmt.Printf("Confidence: %f\n", label.DetectionConfidence)
-				fmt.Printf("Anger: %s\n", label.AngerLikelihood)
-				fmt.Printf("Blurred: %s\n", label.BlurredLikelihood)
-				fmt.Printf("Joy: %s\n", label.JoyLikelihood)
-				fmt.Printf("Sorrow: %s\n", label.SorrowLikelihood)
-				fmt.Printf("Surprise: %s", label.SurpriseLikelihood)
-			}
-		}
+		log.Fatalf("%s: %s", msg, err)
+		panic(fmt.Sprintf("%s: %s", msg, err))
 	}
 }
 
 func main() {
-	flag.Parse()
-	log.SetFlags(0)
-	http.HandleFunc("/", readFile)
-	log.Printf("Listening at %s", *addr)
-	log.Fatal(http.ListenAndServe(*addr, nil))
+	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+	failOnError(err, "Failed to connect to RabbitMQ")
+	defer conn.Close()
+
+	ch, err := conn.Channel()
+	failOnError(err, "Failed to open a channel")
+	defer ch.Close()
+
+	err = ch.ExchangeDeclare(
+		"images", // name
+		"fanout", // type
+		true,     // durable
+		false,    // auto-deleted
+		false,    // internal
+		false,    // no-wait
+		nil,      // arguments
+	)
+
+	failOnError(err, "Failed to declare an exchange")
+
+	q, err := ch.QueueDeclare(
+		"",    // name
+		false, // durable
+		false, // delete when usused
+		false, // exclusive
+		false, // no-wait
+		nil,   // arguments
+	)
+
+	failOnError(err, "Failed to declare a queue")
+
+	err = ch.QueueBind(
+		q.Name,   // queue name
+		"",       // routing key
+		"images", // exchange
+		false,
+		nil)
+
+	failOnError(err, "Failed to bind a queue")
+
+	msgs, err := ch.Consume(
+		q.Name, // queue
+		"",     // consumer
+		true,   // auto-ack
+		false,  // exclusive
+		false,  // no-local
+		false,  // no-wait
+		nil,    // args
+	)
+
+	failOnError(err, "Failed to register a consumer")
+
+	forever := make(chan bool)
+
+	go func() {
+		for d := range msgs {
+			log.Printf(" [x] %s", d.Body)
+
+			r := bytes.NewReader(d.Body)
+
+			labels, err := google.ReaderToFaceResults(r)
+
+			if err != nil {
+				log.Printf("Failed to detect labels: %v", err)
+			} else {
+				fmt.Println("Labels:")
+
+				for _, label := range labels {
+					fmt.Printf("Confidence: %f\n", label.DetectionConfidence)
+					fmt.Printf("Anger: %s\n", label.AngerLikelihood)
+					fmt.Printf("Blurred: %s\n", label.BlurredLikelihood)
+					fmt.Printf("Joy: %s\n", label.JoyLikelihood)
+					fmt.Printf("Sorrow: %s\n", label.SorrowLikelihood)
+					fmt.Printf("Surprise: %s\n", label.SurpriseLikelihood)
+				}
+			}
+		}
+	}()
+
+	log.Printf(" [*] Waiting for logs. To exit press CTRL+C")
+
+	<-forever
 }
