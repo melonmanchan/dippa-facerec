@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log"
 
+	proto "github.com/golang/protobuf/proto"
 	"github.com/melonmanchan/dippa-facerec/src/google"
+	"github.com/melonmanchan/dippa-facerec/src/types"
 	"github.com/streadway/amqp"
 )
 
@@ -73,11 +75,14 @@ func main() {
 
 	go func() {
 		for d := range msgs {
-			log.Printf(" [x] %s", d.Body)
+			processingData := &types.ProcessingData{}
 
-			r := bytes.NewReader(d.Body)
+			if err := proto.Unmarshal(d.Body, processingData); err != nil {
+				log.Printf("Failed to parse address book:", err)
+				break
+			}
 
-			labels, err := google.ReaderToFaceResults(r)
+			labels, err := google.ReaderToFaceResults(bytes.NewReader(processingData.Contents))
 
 			if err != nil {
 				log.Printf("Failed to detect labels: %v", err)
@@ -95,8 +100,6 @@ func main() {
 			}
 		}
 	}()
-
-	log.Printf(" [*] Waiting for logs. To exit press CTRL+C")
 
 	<-forever
 }
