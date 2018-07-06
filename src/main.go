@@ -4,12 +4,23 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"os"
 
 	proto "github.com/golang/protobuf/proto"
-	"github.com/melonmanchan/dippa-facerec/src/google"
-	"github.com/melonmanchan/dippa-facerec/src/types"
+	google "github.com/melonmanchan/dippa-facerec/src/google"
+	types "github.com/melonmanchan/dippa-proto/build/go"
 	"github.com/streadway/amqp"
 )
+
+func getEnv(key, fallback string) string {
+	value, exists := os.LookupEnv(key)
+
+	if !exists {
+		value = fallback
+	}
+
+	return value
+}
 
 func failOnError(err error, msg string) {
 	if err != nil {
@@ -19,7 +30,9 @@ func failOnError(err error, msg string) {
 }
 
 func main() {
-	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+	var rabbitConn = getEnv("RABBITMQ_ADDRESS", "amqp://guest:guest@localhost:5672/")
+	conn, err := amqp.Dial(rabbitConn)
+
 	failOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()
 
@@ -41,7 +54,7 @@ func main() {
 
 	q, err := ch.QueueDeclare(
 		"",    // name
-		false, // durable
+		true,  // durable
 		false, // delete when usused
 		false, // exclusive
 		false, // no-wait
@@ -78,7 +91,7 @@ func main() {
 			processingData := &types.ProcessingData{}
 
 			if err := proto.Unmarshal(d.Body, processingData); err != nil {
-				log.Printf("Failed to parse address book:", err)
+				log.Print("Failed to parse address book:", err)
 				break
 			}
 
