@@ -65,7 +65,7 @@ func main() {
 
 	failOnError(err, "Failed to declare an exchange")
 
-	q, err := ch.QueueDeclare(
+	readQueue, err := ch.QueueDeclare(
 		"",    // name
 		true,  // durable
 		false, // delete when usused
@@ -74,25 +74,34 @@ func main() {
 		nil,   // arguments
 	)
 
+	writeQueue, err := ch.QueueDeclare(
+		"google_results", // name
+		true,             // durable
+		false,            // delete when usused
+		true,             // exclusive
+		false,            // no-wait
+		nil,              // arguments
+	)
+
 	failOnError(err, "Failed to declare a queue")
 
 	err = ch.QueueBind(
-		q.Name,   // queue name
-		"",       // routing key
-		"images", // exchange
+		readQueue.Name, // queue name
+		"",             // routing key
+		"images",       // exchange
 		false,
 		nil)
 
 	failOnError(err, "Failed to bind a queue")
 
 	msgs, err := ch.Consume(
-		q.Name, // queue
-		"",     // consumer
-		true,   // auto-ack
-		false,  // exclusive
-		false,  // no-local
-		false,  // no-wait
-		nil,    // args
+		readQueue.Name, // queue
+		"",             // consumer
+		true,           // auto-ack
+		false,          // exclusive
+		false,          // no-local
+		false,          // no-wait
+		nil,            // args
 	)
 
 	failOnError(err, "Failed to register a consumer")
@@ -140,6 +149,27 @@ func main() {
 					emotion.Surprise = float32(label.SurpriseLikelihood)
 
 					googleFacialRecognitionRes.Emotion = emotion
+				}
+
+				out, err := proto.Marshal(googleFacialRecognitionRes)
+
+				if err != nil {
+					log.Println("processing error", err)
+					break
+				}
+
+				err = ch.Publish(
+					"google_results", // exchange
+					writeQueue.Name,  // routing key
+					false,            // mandatory
+					false,            // immediate
+					amqp.Publishing{
+						Body: out,
+					})
+
+				if err != nil {
+					log.Println("writing results error:", err)
+					break
 				}
 			}
 		}
