@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	proto "github.com/golang/protobuf/proto"
 	google "github.com/melonmanchan/dippa-facerec/src/google"
@@ -31,9 +32,21 @@ func failOnError(err error, msg string) {
 
 func main() {
 	var rabbitConn = getEnv("RABBITMQ_ADDRESS", "amqp://guest:guest@localhost:5672/")
-	conn, err := amqp.Dial(rabbitConn)
 
-	failOnError(err, "Failed to connect to RabbitMQ")
+	var conn *amqp.Connection
+
+	for {
+		newConn, err := amqp.Dial(rabbitConn)
+
+		if err == nil {
+			conn = newConn
+			break
+		}
+
+		log.Printf("Connection failed :%s\n", err)
+		time.Sleep(3 * time.Second)
+	}
+
 	defer conn.Close()
 
 	ch, err := conn.Channel()
@@ -87,13 +100,18 @@ func main() {
 	forever := make(chan bool)
 
 	go func() {
+		log.Println("Listening for messages...")
 		for d := range msgs {
 			processingData := &types.ProcessingData{}
+			googleFacialRecognitionRes := &types.GoogleFacialRecognition{}
 
 			if err := proto.Unmarshal(d.Body, processingData); err != nil {
-				log.Print("Failed to parse address book:", err)
+				log.Print("Failed to parse input: ", err)
 				break
 			}
+
+			googleFacialRecognitionRes.User = processingData.User
+			googleFacialRecognitionRes.Image = processingData.Contents
 
 			labels, err := google.ReaderToFaceResults(bytes.NewReader(processingData.Contents))
 
@@ -103,12 +121,25 @@ func main() {
 				fmt.Println("Labels:")
 
 				for _, label := range labels {
+
+					emotion := &types.GoogleEmotion{}
+
 					fmt.Printf("Confidence: %f\n", label.DetectionConfidence)
 					fmt.Printf("Anger: %s\n", label.AngerLikelihood)
 					fmt.Printf("Blurred: %s\n", label.BlurredLikelihood)
 					fmt.Printf("Joy: %s\n", label.JoyLikelihood)
 					fmt.Printf("Sorrow: %s\n", label.SorrowLikelihood)
 					fmt.Printf("Surprise: %s\n", label.SurpriseLikelihood)
+
+					emotion.DetectionConfidence = label.DetectionConfidence
+
+					emotion.Anger = float32(label.AngerLikelihood)
+					emotion.Blurred = float32(label.BlurredLikelihood)
+					emotion.Joy = float32(label.JoyLikelihood)
+					emotion.Sorrow = float32(label.SorrowLikelihood)
+					emotion.Surprise = float32(label.SurpriseLikelihood)
+
+					googleFacialRecognitionRes.Emotion = emotion
 				}
 			}
 		}
