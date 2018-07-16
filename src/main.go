@@ -65,6 +65,16 @@ func main() {
 
 	failOnError(err, "Failed to declare an exchange")
 
+	err = ch.ExchangeDeclare(
+		"google_results", // name
+		"fanout",         // type
+		true,             // durable
+		false,            // auto-deleted
+		false,            // internal
+		false,            // no-wait
+		nil,              // arguments
+	)
+
 	readQueue, err := ch.QueueDeclare(
 		"",    // name
 		true,  // durable
@@ -72,15 +82,6 @@ func main() {
 		false, // exclusive
 		false, // no-wait
 		nil,   // arguments
-	)
-
-	writeQueue, err := ch.QueueDeclare(
-		"google_results", // name
-		true,             // durable
-		false,            // delete when usused
-		true,             // exclusive
-		false,            // no-wait
-		nil,              // arguments
 	)
 
 	failOnError(err, "Failed to declare a queue")
@@ -160,7 +161,7 @@ func main() {
 
 				err = ch.Publish(
 					"google_results", // exchange
-					writeQueue.Name,  // routing key
+					"",               // routing key
 					false,            // mandatory
 					false,            // immediate
 					amqp.Publishing{
@@ -171,6 +172,8 @@ func main() {
 					log.Println("writing results error:", err)
 					break
 				}
+
+				log.Println("results written...")
 			}
 		}
 	}()
