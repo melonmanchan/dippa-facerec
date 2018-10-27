@@ -130,6 +130,10 @@ func main() {
 			} else {
 				fmt.Println("Labels:")
 
+				if len(labels) == 0 {
+					break
+				}
+
 				for _, label := range labels {
 
 					emotion := &types.GoogleEmotion{}
